@@ -34,17 +34,38 @@ function SearchManga(query)
     local mangas = {}
     local seen = {}
 
+    -- Direct manga title links on WeebCentral: <a href="/series/..." class="... link-hover ...">
     doc:find("a[href*='/series/']"):each(function (i, el)
         local href = el:attr("href")
+        local class = el:attr("class")
         local title = trim(el:text())
         if href ~= "" and title ~= "" and not seen[href] then
-            seen[href] = true
-            table.insert(mangas, {
-                name = title,
-                url = href
-            })
+            local isTitleLink = class:find("link%-hover") ~= nil or class:find("link") ~= nil
+            local isBadge = title:lower() == "official"
+            if isTitleLink and not isBadge then
+                seen[href] = true
+                table.insert(mangas, {
+                    name = title,
+                    url = href
+                })
+            end
         end
     end)
+
+    -- Fallback for any layout differences
+    if #mangas == 0 then
+        doc:find("a[href*='/series/']"):each(function (i, el)
+            local href = el:attr("href")
+            local title = trim(el:text())
+            if href ~= "" and title ~= "" and not seen[href] and title:lower() ~= "official" then
+                seen[href] = true
+                table.insert(mangas, {
+                    name = title,
+                    url = href
+                })
+            end
+        end)
+    end
 
     return mangas
 end
@@ -70,11 +91,15 @@ function MangaChapters(mangaURL)
 
     doc:find("a[href*='/chapters/']"):each(function (i, el)
         local href = el:attr("href")
-        local nameSpan = el:find("span"):first()
+        local nameSpan = el:find("span.grow span"):first()
         local name = trim(nameSpan:text())
         if name == "" then
             name = trim(el:text())
         end
+
+        name = name:gsub("Last%s*Read", "")
+        name = name:gsub("%d%d%d%d%-%d%d%-%d%d.-$", "")
+        name = trim(name)
 
         if href ~= "" and name ~= "" then
             table.insert(chapters, {
